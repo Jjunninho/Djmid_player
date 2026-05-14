@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DJ MID — MIDI Mixer Pro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/djmid.css">
+<style>
+  /* ── Ajustes de tamanho do header ── */
+  #app           { grid-template-rows: 46px 1fr 200px; }
+  #header        { padding: 0 14px; gap: 10px; }
+  #logo          { font-size: 17px; letter-spacing: 4px; }
+  #timeDisp      { font-size: 11px; padding: 4px 8px; min-width: 120px; letter-spacing: 1px; }
+  #bpmVal        { font-size: 14px; padding: 3px 8px; width: 58px; }
+  .bpmBtn        { width: 22px; height: 22px; font-size: 14px; }
+  #bpmBox label  { font-size: 10px; }
+  .tbtn          { width: 34px; height: 28px; font-size: 12px; }
+  #fileDrop,
+  #sf2Drop       { height: 28px; font-size: 9px; }
+  #fileDrop      { width: 110px; }
+  #sf2Drop       { width: 110px; }
+  #statusLed     { width: 8px; height: 8px; }
+  #fileName      { font-size: 10px; max-width: 120px; }
+  #sf2Label      { font-size: 9px; max-width: 110px; }
+</style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loadOverlay">
+  <div class="load-title">DJ MID</div>
+  <div class="load-bar-wrap"><div class="load-bar" id="loadBar"></div></div>
+  <div class="load-msg" id="loadMsg">Carregando arquivo MIDI...</div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div id="app">
+
+<!-- ── HEADER ── -->
+<div id="header">
+  <div id="logo">DJ MID<span>PLAYER</span></div>
+
+  <div id="transport">
+    <button class="tbtn" id="playBtn" title="Play">▶</button>
+    <button class="tbtn" id="pauseBtn" title="Pause">⏸</button>
+    <button class="tbtn" id="stopBtn" title="Stop">⏹</button>
+    <button class="tbtn" id="loopBtn" title="Loop">↺</button>
+    <div style="width:1px;height:20px;background:var(--border);margin:0 3px;"></div>
+    <button class="tbtn" id="saveMixBtn" title="Salvar configuração da mesa (JSON)" style="font-size:10px;width:42px;color:var(--amber);border-color:var(--amber);">💾 SAV</button>
+    <button class="tbtn" id="loadMixBtn" title="Carregar configuração da mesa (JSON)" style="font-size:10px;width:42px;color:var(--cyan);border-color:var(--cyan);">📂 LOD</button>
+    <input type="file" id="mixFileInput" accept=".json" style="display:none">
+  </div>
+
+  <div id="timeDisp" id="timeDisp">00:00.000 | BAR 00 : 00</div>
+
+  <div id="bpmBox">
+    <label>BPM</label>
+    <button class="bpmBtn" id="bpmDn">−</button>
+    <div id="bpmVal">120</div>
+    <button class="bpmBtn" id="bpmUp">+</button>
+  </div>
+
+  <div style="margin-left:10px;display:flex;align-items:center;gap:6px;">
+    <div id="statusLed"></div>
+    <span id="fileName" style="font-size:11px;color:var(--textdim);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Nenhum arquivo</span>
+  </div>
+
+  <div id="fileArea">
+    <div style="display:flex;align-items:center;gap:6px;margin-right:8px;">
+      <div id="sf2Led" style="width:8px;height:8px;border-radius:50%;background:var(--textdim);transition:all .3s;flex-shrink:0;"></div>
+      <span id="sf2Label" style="font-size:10px;color:var(--textdim);white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;">Sem SoundFont</span>
+    </div>
+    <div id="sf2Drop" onclick="document.getElementById('sf2Input').click()" style="width:140px;height:34px;border:1px dashed var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--textdim);cursor:pointer;transition:all .2s;letter-spacing:1px;" title="Carregar SoundFont (.sf2)">
+      🎹 DRAG SF2
+    </div>
+    <input type="file" id="sf2Input" accept=".sf2" style="display:none">
+    <div id="fileDrop" onclick="document.getElementById('fileInput').click()">
+      📁 DRAG MIDI
+    </div>
+    <input type="file" id="fileInput" accept=".mid,.midi">
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div id="main">
+
+  <!-- CHANNEL STRIPS -->
+<div id="channelPanel">
+    <div class="ch-panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>CHANNELS ● 16 MIDI</span>
+      <button class="tbtn" onclick="randomizeInstruments()" title="Randomizar Instrumentos" style="height:20px; font-size:10px; width:48px; border-color:var(--magenta); color:var(--magenta);">
+        🎲 RND
+      </button>
+    </div>
+    
+    <div class="channels-grid" id="channelsGrid"></div>
+    
+  </div>
+
+  <!-- CENTER -->
+  <div id="centerPanel">
+    <div id="rollToolbar">
+      <span class="roll-lbl">PIANO ROLL</span>
+      <select class="roll-sel" id="rollChannel">
+        <option value="-1">All Channels</option>
+      </select>
+      <select class="roll-sel" id="rollZoom">
+        <option value="1">1x</option>
+        <option value="2" selected>2x</option>
+        <option value="4">4x</option>
+        <option value="8">8x</option>
+      </select>
+      <span class="roll-lbl" id="rollInfo" style="margin-left:auto;color:var(--textdim);font-size:8px;"></span>
+    </div>
+    <div id="seekWrap">
+      <span id="seekLbl">0:00</span>
+      <div id="seekBar">
+        <div id="seekFill"></div>
+        <div id="seekHead"></div>
+      </div>
+      <span id="seekLblEnd">0:00</span>
+    </div>
+    <div id="rollWrap">
+      <canvas id="rollCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- FX PANEL -->
+  <div id="fxPanel">
+    <div class="fx-section">
+      <div class="fx-title">REVERB</div>
+      <div class="fx-row">
+        <span class="fx-label">ON/OFF</span>
+        <div class="fx-toggle on" id="revToggle" onclick="toggleFX('rev',this)"></div>
+      </div>
+      <div class="fx-row">
+        <span class="fx-label">Room</span>
+        <input type="range" class="fx-slider" id="revRoom" min="0" max="100" value="40" oninput="updateFX()">
+        <span class="fx-val" id="revRoomVal">40</span>
+      </div>
+      <div class="fx-row">
+        <span class="fx-label">Mix</span>
+        <input type="range" class="fx-slider" id="revMix" min="0" max="100" value="25" oninput="updateFX()">
+        <span class="fx-val" id="revMixVal">25</span>
+      </div>
+      <div class="fx-row">
+        <span class="fx-label">Damp</span>
+        <input type="range" class="fx-slider" id="revDamp" min="0" max="100" value="50" oninput="updateFX()">
+        <span class="fx-val" id="revDampVal">50</span>
+      </div>
+    </div>
+
+    <div class="fx-section">
+      <div class="fx-title">CHORUS</div>
+      <div class="fx-row">
+        <span class="fx-label">ON/OFF</span>
+        <div class="fx-toggle on" id="chorToggle" onclick="toggleFX('chor',this)"></div>
+      </div>
+      <div class="fx-row">
+        <span class="fx-label">Rate</span>
+        <input type="range" class="fx-slider" id="chorRate" min="1" max="100" value="30" oninput="updateFX()">
+        <span class="fx-val" id="chorRateVal">30</span>
+      </div>
+      <div class="fx-row">
+        <span class="fx-label">Depth</span>
+        <input type="range" class="fx-slider" id="chorDepth" min="0" max="100" value="40" oninput="updateFX()">
+        <span class="fx-val" id="chorDepthVal">40</span>
+      </div>
+      <div class="fx-row">
+        <span class="fx-label">Mix</span>
+        <input type="range" class="fx-slider" id="chorMix" min="0" max="100" value="20" oninput="updateFX()">
+        <span class="fx-val" id="chorMixVal">20</span>
+      </div>
+    </div>
+
+    <div class="fx-section">
+      <div class="fx-title">DELAY</div>
+      <div class="fx-row">
+        <span class="fx-label">ON/OFF</span>
+        <div class="fx-toggle" id="delToggle" onclick="toggleFX('del',this)"></div>
+      </div>
+      <div class="fx-row">
+        <span class="fx-label">Time</span>
+        <input type="range" class="fx-slider" id="delTime" min="1" max="100" value="25" oninput="updateFX()">
+        <span class="fx-val" id="delTimeVal">25</span>
+      </div>
+      <div class="fx-row">
+        <span class="fx-label">Feedback</span>
+        <input type="range" class="fx-slider" id="delFb" min="0" max="90" value="30" oninput="updateFX()">
+        <span class="fx-val" id="delFbVal">30</span>
+      </div>
+      <div class="fx-row">
+        <span class="fx-label">Mix</span>
+        <input type="range" class="fx-slider" id="delMix" min="0" max="100" value="15" oninput="updateFX()">
+        <span class="fx-val" id="delMixVal">15</span>
+      </div>
+    </div>
+
+    <div class="fx-section">
+      <div class="fx-title">MASTER EQ</div>
+      <div class="eq-bands" id="eqBands"></div>
+    </div>
+
+    <div class="fx-section">
+      <div class="fx-title">MASTER</div>
+      <div class="fx-row">
+        <span class="fx-label">Volume</span>
+        <input type="range" class="fx-slider" id="masterVol" min="0" max="150" value="85" oninput="updateFX()">
+        <span class="fx-val" id="masterVolVal">85%</span>
+      </div>
+      <div class="fx-row">
+        <span class="fx-label">Limiter</span>
+        <div class="fx-toggle on" id="limToggle" onclick="toggleFX('lim',this)"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- ── BOTTOM ── -->
+<div id="bottom">
+  <div id="keyboardWrap">
+    <canvas id="keyboardCanvas"></canvas>
+  </div>
+  <div id="eventLog">
+    <div style="font-family:'Orbitron',monospace;font-size:9px;color:var(--textdim);padding:2px 0 6px;letter-spacing:2px;">EVENT LOG</div>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<script src="js/state.js"></script>
+<script src="js/midi-parser.js"></script>
+<script src="js/audio-engine.js"></script>
+<script src="js/playback.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
